@@ -22,16 +22,13 @@ if __name__ == '__main__':
     from os.path import realpath, dirname
     path.append(realpath(dirname(realpath(__file__))+'/../'))
 
-from collections import OrderedDict
+from collections import defaultdict
 from functools import wraps
 from json import dumps
 from flask import (
     Flask, request, render_template, url_for, redirect, session, flash)
 from rauth import OAuth2Service
 from models import User, Item, Feed, db
-
-
-TYPES = ('personal', 'star', 'repo', 'issue')
 
 
 app = Flask(__name__)
@@ -85,10 +82,10 @@ def index():
     if not request.user:
         return redirect(url_for('login'))
 
-    d = OrderedDict({x: [] for x in TYPES})
     unread_items = Item.query.filter(
         Item.feed.has(user=request.user), Item.archived==False)\
         .order_by(Item.date.desc()).all()
+    d = defaultdict(list)
     for item in unread_items:
         item_type, item.rendered_content = item.render(request.user)
         if not item_type:
@@ -196,9 +193,9 @@ def add_feed():
     """
     Add feeds
     """
-    if not request.form.get('url'):
+    if not request.form.get('url') or not request.form['name']:
         return redirect(url_for('index'))
-    feed = Feed(request.form['url'], request.user)
+    feed = Feed(request.form['url'], request.form['name'], request.user)
     db.session.add(feed)
     db.session.commit()
     return redirect(url_for('feeds'))

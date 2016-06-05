@@ -106,56 +106,16 @@ class Item(db.Model):
 
     def render(self, request_user):
         resp_item = self.content
-        act = ''
         repo = resp_item['repo']['name']
         user = resp_item['actor']['login']
         repo_user = repo.split('/')[0]
-        if resp_item['type'] == 'WatchEvent':
-            # starred repo
-            t = 'star'
-            act = 'starred'
-        elif resp_item['type'] == 'CreateEvent':
-            t = REF_MAP.get(resp_item['payload']['ref_type'])
-            act = 'created {0}'.format(resp_item['payload']['ref_type'])
-        elif resp_item['type'] == 'ForkEvent':
-            t = 'repo'
-            act = 'forked'
-        elif resp_item['type'] == 'PushEvent':
-            # TODO
-            t = 'repo'
-            act = 'pushed to'
-        elif resp_item['type'] == 'PullRequestEvent':
-            # TODO
-            t = 'repo'
-            act = '{0} pull request'.format(resp_item['payload']['action'])
-        elif resp_item['type'] == 'DeleteEvent':
-            # TODO
-            t = 'repo'
-            act = 'deleted {0} {1} at'.format(resp_item['payload']['ref_type'],
-                                            resp_item['payload']['ref'])
-        elif resp_item['type'] == 'IssuesEvent':
-            t = 'issue'
-            act = '{0} issue (<a href="{1}">#{2}</a>)'.format(resp_item['payload']['action'], resp_item['payload']['issue']['html_url'], resp_item['payload']['issue']['number'])
-        elif resp_item['type'] == 'IssueCommentEvent':
-            t = 'issue'
-            act = 'commented issue (<a href="{0}">#{1}</a>)'.format(resp_item['payload']['issue']['html_url'], resp_item['payload']['issue']['number'])
-        elif resp_item['type'] == 'CommitCommentEvent':
-            t = 'issue'
-            act = 'commented on commit <a href="{0}">{1}</a>'.format(resp_item['payload']['comment']['html_url'], resp_item['payload']['comment']['commit_id'])
-        elif resp_item['type'] == 'GollumEvent':
-            t = 'repo'
-            # TODO multiple pages
-            page = resp_item['payload']['pages'][0]
-            act = '{0} wiki <a href="{1}">{2}</a>'.format(page['action'], page['html_url'], page['page_name'])
-        else:
-            print resp_item['type'], resp_item
-            return False, False
-        if repo_user == request_user.login:
-            t = 'personal'
-        s = '<a href="https://github.com/{0}">{0}</a> {2} <a href="https://github.com/{1}">{1}</a>.'.format(user, repo, act)
+        act = self.__get_activity(resp_item['type'], resp_item['payload'])
+        txt = '<a href="https://github.com/{0}">{0}</a> {2} <a href="https://github.com/{1}">{1}</a>.'.format(user, repo, act)
         if resp_item['type'] == 'ForkEvent':
-            s += ' to <a href="{0}">{1}/{2}</a>'.format(resp_item['payload']['forkee']['svn_url'], user, resp_item['payload']['forkee']['name'])
-        return t, s
+            txt += ' to <a href="{0}">{1}/{2}</a>'.format(resp_item['payload']['forkee']['svn_url'],
+                                                        user,
+                                                        resp_item['payload']['forkee']['name'])
+        return repo, txt
 
     @staticmethod
     def parse_and_add(resp_item, feed, request_user):
@@ -170,3 +130,33 @@ class Item(db.Model):
         db.session.add(item)
         db.session.commit()
         return True
+
+    def __get_activity(self, type, payload):
+        if type == 'WatchEvent':
+            return 'starred'
+        elif type == 'CreateEvent':
+            return 'created {0}'.format(payload['ref_type'])
+        elif type == 'ForkEvent':
+            return 'forked'
+        elif type == 'PushEvent':
+            return 'pushed to'
+        elif type == 'PullRequestEvent':
+            return '{0} pull request'.format(payload['action'])
+        elif type == 'DeleteEvent':
+            return 'deleted {0} {1} at'.format(payload['ref_type'],
+                                               payload['ref'])
+        elif type == 'IssuesEvent':
+            return '{0} issue (<a href="{1}">#{2}</a>)'.format(payload['action'],
+                                                               payload['issue']['html_url'],
+                                                               payload['issue']['number'])
+        elif type == 'IssueCommentEvent':
+            return 'commented issue (<a href="{0}">#{1}</a>)'.format(payload['issue']['html_url'],
+                                                                     payload['issue']['number'])
+        elif resp_item['type'] == 'CommitCommentEvent':
+            return 'commented on commit <a href="{0}">{1}</a>'.format(payload['comment']['html_url'],
+                                                                      payload['comment']['commit_id'])
+        elif resp_item['type'] == 'GollumEvent':
+            page = resp_item['payload']['pages'][0]
+            return '{0} wiki <a href="{1}">{2}</a>'.format(page['action'], page['html_url'], page['page_name'])
+        else:
+            print resp_item['type'], resp_item
